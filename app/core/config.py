@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     # Redis / Celery Configuration
     REDIS_URL: str = "redis://localhost:6379/0"
     
+    # AWS S3 Configuration
+    AWS_ACCESS_KEY_ID: str | None = None
+    AWS_SECRET_ACCESS_KEY: str | None = None
+    AWS_REGION: str = "us-east-1"
+    AWS_BUCKET_NAME: str = "expense-scanner-receipts"
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding='utf-8',
