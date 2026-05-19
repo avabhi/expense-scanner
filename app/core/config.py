@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     AWS_BUCKET_NAME: str = "expense-scanner-receipts"
     
+    # AI / LLM Configuration
+    OPENAI_API_KEY: str | None = None
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding='utf-8',
