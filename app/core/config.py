@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Expense Scanner"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
+    ENVIRONMENT: str = "development"  # development, production, testing
     
     # PostgreSQL Configuration
     DATABASE_URL: str = "postgresql://user:password@localhost/expense_scanner"
@@ -17,6 +18,7 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str | None = None
     AWS_REGION: str = "us-east-1"
     AWS_BUCKET_NAME: str = "expense-scanner-receipts"
+    AWS_ENDPOINT_URL: str | None = None  # Used for LocalStack in development
     
     # AI / LLM Configuration
     OPENAI_API_KEY: str | None = None

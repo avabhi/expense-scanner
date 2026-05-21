@@ -3,12 +3,16 @@ from botocore.exceptions import ClientError
 from app.core.config import settings
 
 def get_s3_client():
-    return boto3.client(
-        's3',
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_REGION
-    )
+    client_kwargs = {
+        'aws_access_key_id': settings.AWS_ACCESS_KEY_ID or 'mock_key',
+        'aws_secret_access_key': settings.AWS_SECRET_ACCESS_KEY or 'mock_secret',
+        'region_name': settings.AWS_REGION
+    }
+    
+    if settings.ENVIRONMENT == "development" and settings.AWS_ENDPOINT_URL:
+        client_kwargs['endpoint_url'] = settings.AWS_ENDPOINT_URL
+        
+    return boto3.client('s3', **client_kwargs)
 
 def create_presigned_post(object_name: str, expiration: int = 3600):
     """
@@ -23,7 +27,30 @@ def create_presigned_post(object_name: str, expiration: int = 3600):
             Conditions=[{"acl": "private"}],
             ExpiresIn=expiration
         )
+        if response and "url" in response and settings.ENVIRONMENT == "development" and "http://minio:9000" in response["url"]:
+            response["url"] = response["url"].replace("http://minio:9000", "http://localhost:9000")
     except ClientError as e:
         print(e)
         return None
     return response
+
+def get_presigned_download_url(object_name: str, expiration: int = 3600) -> str | None:
+    """
+    Generate a presigned URL to retrieve (GET) a file from S3.
+    """
+    s3_client = get_s3_client()
+    try:
+        url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': settings.AWS_BUCKET_NAME,
+                'Key': object_name
+            },
+            ExpiresIn=expiration
+        )
+        if url and settings.ENVIRONMENT == "development" and "http://minio:9000" in url:
+            url = url.replace("http://minio:9000", "http://localhost:9000")
+    except ClientError as e:
+        print(e)
+        return None
+    return url

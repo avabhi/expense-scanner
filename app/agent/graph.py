@@ -1,3 +1,5 @@
+import base64
+import httpx
 from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
@@ -22,6 +24,26 @@ def extract_receipt_info(state: AgentState):
     """
     image_url = state["image_url"]
     
+    # If using local mock storage in development, download the image and pass as base64 data URL
+    # because OpenAI API cannot access local URLs like localhost/minio.
+    if any(host in image_url for host in ["localhost", "minio", "127.0.0.1"]):
+        try:
+            # Map localhost to minio since we are running inside the container network
+            fetch_url = image_url
+            if "localhost" in fetch_url:
+                fetch_url = fetch_url.replace("localhost", "minio")
+            elif "127.0.0.1" in fetch_url:
+                fetch_url = fetch_url.replace("127.0.0.1", "minio")
+                
+            response = httpx.get(fetch_url)
+            if response.status_code == 200:
+                base64_image = base64.b64encode(response.content).decode("utf-8")
+                mime_type = response.headers.get("content-type", "image/jpeg")
+                image_url = f"data:{mime_type};base64,{base64_image}"
+        except Exception as e:
+            print(f"Failed to fetch local image for base64 encoding: {e}")
+            # Keep original URL as fallback
+            
     # Construct the multimodal message
     message = HumanMessage(
         content=[
