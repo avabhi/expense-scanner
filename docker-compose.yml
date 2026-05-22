@@ -90,7 +90,7 @@ services:
   worker:
     build: .
     container_name: expense_scanner_worker
-    command: watchfiles --filter python "celery -A app.worker.celery_app worker --loglevel=info" app
+    command: watchfiles --filter python "celery -A app.worker.celery_app worker --loglevel=info -Q main-queue,celery" app
     volumes:
       - .:/app
       - /app/.venv

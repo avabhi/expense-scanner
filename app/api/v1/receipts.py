@@ -47,6 +47,10 @@ def ingest_receipt(request: ReceiptIngestRequest, db: Session = Depends(get_db))
     Webhook / Notification that a receipt was uploaded.
     Implements idempotency and enqueues the processing job.
     """
+    import redis
+    r = redis.Redis.from_url(settings.REDIS_URL)
+    task_id_key = f"receipt_task:{request.file_hash}"
+
     # 1. Idempotency Check
     existing_receipt = db.query(Receipt).filter(Receipt.file_hash == request.file_hash).first()
     
@@ -62,10 +66,20 @@ def ingest_receipt(request: ReceiptIngestRequest, db: Session = Depends(get_db))
             }
         # If it's already processing/pending, return status
         elif existing_receipt.status in ["pending", "processing"]:
+            existing_task_id = r.get(task_id_key)
+            if existing_task_id:
+                job_id = existing_task_id.decode("utf-8")
+            else:
+                # Trigger a new task to resume processing since no active task is tracked
+                task = celery_app.send_task("app.worker.tasks.process_receipt", args=[request.object_key])
+                job_id = task.id
+                r.setex(task_id_key, 86400, job_id)
+                
             return {
                 "message": "Receipt is already being processed.",
                 "status": existing_receipt.status,
-                "receipt_id": str(existing_receipt.id)
+                "receipt_id": str(existing_receipt.id),
+                "job_id": job_id
             }
         # If it failed previously, we will re-attempt processing
         elif existing_receipt.status == "failed":
@@ -74,6 +88,8 @@ def ingest_receipt(request: ReceiptIngestRequest, db: Session = Depends(get_db))
             db.commit()
             
             task = celery_app.send_task("app.worker.tasks.process_receipt", args=[request.object_key])
+            r.setex(task_id_key, 86400, task.id)
+            
             return {
                 "message": "Re-attempting failed receipt processing.",
                 "status": "pending",
@@ -93,6 +109,7 @@ def ingest_receipt(request: ReceiptIngestRequest, db: Session = Depends(get_db))
     
     # 3. Enqueue the Celery background task
     task = celery_app.send_task("app.worker.tasks.process_receipt", args=[request.object_key])
+    r.setex(task_id_key, 86400, task.id)
     
     return {
         "message": "Receipt processing job accepted.",
@@ -135,3 +152,30 @@ async def get_task_status(task_id: str):
             await r.close()
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@router.get("/{receipt_id}")
+def get_receipt(receipt_id: str, db: Session = Depends(get_db)):
+    """
+    Retrieve the details of a processed receipt including line items.
+    """
+    receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+        
+    return {
+        "id": str(receipt.id),
+        "merchant_name": receipt.merchant_name,
+        "date": receipt.date.isoformat() if receipt.date else None,
+        "total_amount": receipt.total_amount,
+        "currency": receipt.currency,
+        "status": receipt.status,
+        "line_items": [
+            {
+                "id": item.id,
+                "description": item.description,
+                "price": item.price
+            }
+            for item in receipt.line_items
+        ]
+    }
+
