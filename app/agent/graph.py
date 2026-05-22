@@ -1,18 +1,18 @@
 import base64
 import httpx
 from langgraph.graph import StateGraph, END
-from langchain_openai import ChatOpenAI
+from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
 
 from app.agent.state import AgentState
 from app.schemas.receipt import ReceiptSchema
 from app.core.config import settings
 
-# Initialize the LLM
-llm = ChatOpenAI(
-    model="gpt-4o", 
-    temperature=0, 
-    api_key=settings.OPENAI_API_KEY
+# Initialize the LLM using local Ollama vision model
+llm = ChatOllama(
+    model=settings.OLLAMA_MODEL,
+    temperature=0,
+    base_url=settings.OLLAMA_BASE_URL
 )
 
 # Bind the Pydantic schema for structured output extraction

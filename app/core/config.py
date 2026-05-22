@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     
     # AI / LLM Configuration
     OPENAI_API_KEY: str | None = None
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "qwen2.5-vl:7b"
     
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -76,6 +76,9 @@ services:
       - AWS_BUCKET_NAME=expense-scanner-receipts
       - AWS_ENDPOINT_URL=http://minio:9000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
@@ -87,7 +90,7 @@ services:
   worker:
     build: .
     container_name: expense_scanner_worker
-    command: celery -A app.worker.celery_app worker --loglevel=info
+    command: watchfiles --filter python "celery -A app.worker.celery_app worker --loglevel=info" app
     volumes:
       - .:/app
       - /app/.venv
@@ -101,6 +104,9 @@ services:
       - AWS_BUCKET_NAME=expense-scanner-receipts
       - AWS_ENDPOINT_URL=http://minio:9000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
