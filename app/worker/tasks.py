@@ -100,10 +100,9 @@ def process_receipt(self, object_key: str):
         # Add new line items
         for item in validated.line_items:
             line_item = LineItem(
-                # pyrefly: ignore [unexpected-keyword]
                 description=item.description,
-                # pyrefly: ignore [unexpected-keyword]
-                price=item.price
+                price=item.price,
+                category=item.category,
             )
             receipt.line_items.append(line_item)
             

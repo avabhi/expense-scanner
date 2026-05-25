@@ -1,0 +1,16 @@
+
+    # .graphifyignore
+    node_modules/
+    dist/
+    *.generated.py
+
+    # Ignore everything at the root level
+    /*
+
+    # But do not ignore the src directory (re-includes it for traversal)
+    !/src/
+
+    # Ignore local graphify outputs
+    graphify-out/manifest.json
+    graphify-out/cost.json
+    graphify-out/cache/

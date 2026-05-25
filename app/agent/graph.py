@@ -47,7 +47,20 @@ def extract_receipt_info(state: AgentState):
     # Construct the multimodal message
     message = HumanMessage(
         content=[
-            {"type": "text", "text": "Extract the receipt details from this image accurately."},
+            {
+                "type": "text",
+                "text": (
+                    "You are an expert receipt parser. Extract ALL details from this receipt image accurately.\n\n"
+                    "For EVERY line item, you must also assign a spending category from the fixed list in the schema.\n"
+                    "Examples:\n"
+                    "- 'Shampoo' → Groceries\n"
+                    "- 'Big Mac' or 'Pizza' → Food & Dining\n"
+                    "- 'Paracetamol' → Health & Pharmacy\n"
+                    "- 'USB Cable' → Electronics & Tech\n"
+                    "- 'Movie Ticket' → Entertainment\n"
+                    "Be precise: use the exact category name from the schema."
+                )
+            },
             {"type": "image_url", "image_url": {"url": image_url}},
         ]
     )

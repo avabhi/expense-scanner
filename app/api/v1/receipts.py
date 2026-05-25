@@ -9,8 +9,9 @@ import redis.asyncio as aioredis
 
 from app.core.cloud_storage import create_presigned_post
 from app.worker.celery_app import celery_app
-from app.api.deps import get_db
+from app.api.deps import get_db, get_current_user
 from app.models.receipt import Receipt
+from app.models.user import User
 from app.core.config import settings
 
 router = APIRouter()
@@ -25,7 +26,7 @@ class ReceiptIngestRequest(BaseModel):
     file_hash: str  # For idempotency
 
 @router.get("/upload-url", response_model=UploadUrlResponse)
-def get_upload_url(filename: str):
+def get_upload_url(filename: str, current_user: User = Depends(get_current_user)):
     """
     Generate a presigned URL to upload a receipt directly to S3.
     """
@@ -41,18 +42,25 @@ def get_upload_url(filename: str):
         object_key=object_key
     )
 
-@router.post("/", status_code=202)
-def ingest_receipt(request: ReceiptIngestRequest, db: Session = Depends(get_db)):
+@router.post("", status_code=202)
+def ingest_receipt(
+    request: ReceiptIngestRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Webhook / Notification that a receipt was uploaded.
     Implements idempotency and enqueues the processing job.
     """
     import redis
     r = redis.Redis.from_url(settings.REDIS_URL)
-    task_id_key = f"receipt_task:{request.file_hash}"
+    task_id_key = f"receipt_task:{current_user.id}:{request.file_hash}"
 
     # 1. Idempotency Check
-    existing_receipt = db.query(Receipt).filter(Receipt.file_hash == request.file_hash).first()
+    existing_receipt = db.query(Receipt).filter(
+        Receipt.file_hash == request.file_hash,
+        Receipt.user_id == current_user.id
+    ).first()
     
     if existing_receipt:
         # If it was completed, we return the cached record
@@ -101,7 +109,8 @@ def ingest_receipt(request: ReceiptIngestRequest, db: Session = Depends(get_db))
     new_receipt = Receipt(
         s3_object_key=request.object_key,
         file_hash=request.file_hash,
-        status="pending"
+        status="pending",
+        user_id=current_user.id
     )
     db.add(new_receipt)
     db.commit()
@@ -154,11 +163,23 @@ async def get_task_status(task_id: str):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.get("/{receipt_id}")
-def get_receipt(receipt_id: str, db: Session = Depends(get_db)):
+def get_receipt(
+    receipt_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Retrieve the details of a processed receipt including line items.
     """
-    receipt = db.query(Receipt).filter(Receipt.id == receipt_id).first()
+    try:
+        receipt_uuid = uuid.UUID(receipt_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid receipt ID format")
+
+    receipt = db.query(Receipt).filter(
+        Receipt.id == receipt_uuid,
+        Receipt.user_id == current_user.id
+    ).first()
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
         
@@ -173,7 +194,8 @@ def get_receipt(receipt_id: str, db: Session = Depends(get_db)):
             {
                 "id": item.id,
                 "description": item.description,
-                "price": item.price
+                "price": item.price,
+                "category": item.category,
             }
             for item in receipt.line_items
         ]

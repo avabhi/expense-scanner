@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5vl:7b"
+
+    # Auth / Google OAuth
+    SECRET_KEY: str = "changeme"
+    GOOGLE_CLIENT_ID: str = ""
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
     
     model_config = SettingsConfigDict(
         env_file=".env",
