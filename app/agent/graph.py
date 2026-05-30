@@ -1,19 +1,40 @@
 import base64
 import httpx
 from langgraph.graph import StateGraph, END
+# pyrefly: ignore [missing-import]
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
 from app.agent.state import AgentState
 from app.schemas.receipt import ReceiptSchema
 from app.core.config import settings
 
-# Initialize the LLM using local Ollama vision model
-llm = ChatOllama(
-    model=settings.OLLAMA_MODEL,
-    temperature=0,
-    base_url=settings.OLLAMA_BASE_URL
-)
+def get_llm():
+    provider = settings.LLM_PROVIDER.lower()
+    if provider == "openai":
+        return ChatOpenAI(
+            model=settings.OPENAI_MODEL,
+            api_key=settings.OPENAI_API_KEY,
+            temperature=0
+        )
+    elif provider == "gemini":
+        # Use Gemini via OpenAI compatibility layer (free tier from Google AI Studio)
+        return ChatOpenAI(
+            model=settings.GEMINI_MODEL,
+            api_key=settings.GEMINI_API_KEY or settings.OPENAI_API_KEY,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            temperature=0
+        )
+    else:
+        return ChatOllama(
+            model=settings.OLLAMA_MODEL,
+            temperature=0,
+            base_url=settings.OLLAMA_BASE_URL
+        )
+
+# Initialize the LLM based on selected provider
+llm = get_llm()
 
 # Bind the Pydantic schema for structured output extraction
 structured_llm = llm.with_structured_output(ReceiptSchema)

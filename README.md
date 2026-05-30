@@ -81,31 +81,19 @@ Before uploading a receipt, request a secure presigned upload URL from the serve
 * **Example Response**:
   ```json
   {
-    "url": "http://localhost:9000/expense-scanner-receipts",
-    "fields": {
-      "acl": "private",
-      "key": "receipts/a48357e5-9b81-40e9-a2b2-cbf40a66bce5-my_receipt.jpg",
-      "AWSAccessKeyId": "mock_key",
-      "policy": "...",
-      "signature": "..."
-    },
+    "url": "http://localhost:9000/expense-scanner-receipts/receipts/a48357e5-9b81-40e9-a2b2-cbf40a66bce5-my_receipt.jpg?AWSAccessKeyId=...",
+    "method": "PUT",
+    "fields": {},
     "object_key": "receipts/a48357e5-9b81-40e9-a2b2-cbf40a66bce5-my_receipt.jpg"
   }
   ```
 
 ### 2. Upload Image to MinIO / S3
-Use the returned `url` and `fields` from the previous endpoint to upload the image directly to object storage via a `POST` form upload.
+Use the returned `url` from the previous endpoint to upload the image directly to object storage via a `PUT` request with raw binary file contents.
 
 * **Example Upload Command**:
   ```bash
-  curl -X POST \
-    -F "acl=private" \
-    -F "key=receipts/a48357e5-9b81-40e9-a2b2-cbf40a66bce5-my_receipt.jpg" \
-    -F "AWSAccessKeyId=mock_key" \
-    -F "policy=..." \
-    -F "signature=..." \
-    -F "file=@/path/to/my_receipt.jpg" \
-    http://localhost:9000/expense-scanner-receipts
+  curl -X PUT -T "/path/to/my_receipt.jpg" "PRESIGNED_PUT_URL"
   ```
 
 ### 3. Submit for Processing (Idempotent Ingestion)

@@ -21,9 +21,14 @@ class Settings(BaseSettings):
     AWS_ENDPOINT_URL: str | None = None  # Used for LocalStack in development
     
     # AI / LLM Configuration
+    LLM_PROVIDER: str = "ollama"  # ollama, openai, gemini
     OPENAI_API_KEY: str | None = None
+    OPENAI_MODEL: str = "gpt-4o"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5vl:7b"
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+
 
     # Auth / Google OAuth
     SECRET_KEY: str = "changeme"
