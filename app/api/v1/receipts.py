@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import redis.asyncio as aioredis
 
-from app.core.cloud_storage import create_presigned_put
+from app.core.cloud_storage import create_presigned_post, create_presigned_put
 from app.worker.celery_app import celery_app
 from app.api.deps import get_db, get_current_user
 from app.models.receipt import Receipt
@@ -33,16 +33,28 @@ def get_upload_url(filename: str, current_user: User = Depends(get_current_user)
     """
     object_key = f"receipts/{uuid.uuid4()}-{filename}"
     
-    presigned_url = create_presigned_put(object_key)
-    if not presigned_url:
-        raise HTTPException(status_code=500, detail="Could not generate upload URL")
-        
-    return UploadUrlResponse(
-        url=presigned_url,
-        method="PUT",
-        fields={},
-        object_key=object_key
-    )
+    if settings.ENVIRONMENT == "development":
+        presigned = create_presigned_post(object_key)
+        if not presigned:
+            raise HTTPException(status_code=500, detail="Could not generate upload URL")
+            
+        return UploadUrlResponse(
+            url=presigned["url"],
+            method="POST",
+            fields=presigned["fields"],
+            object_key=object_key
+        )
+    else:
+        presigned_url = create_presigned_put(object_key)
+        if not presigned_url:
+            raise HTTPException(status_code=500, detail="Could not generate upload URL")
+            
+        return UploadUrlResponse(
+            url=presigned_url,
+            method="PUT",
+            fields={},
+            object_key=object_key
+        )
 
 @router.post("", status_code=202)
 def ingest_receipt(
