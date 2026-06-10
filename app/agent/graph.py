@@ -65,22 +65,27 @@ def extract_receipt_info(state: AgentState):
             print(f"Failed to fetch local image for base64 encoding: {e}")
             # Keep original URL as fallback
             
+    target_currency = state.get("target_currency")
+    prompt_text = (
+        "You are an expert receipt parser. Extract ALL details from this receipt image accurately.\n\n"
+        "For EVERY line item, you must also assign a spending category from the fixed list in the schema.\n"
+        "Examples:\n"
+        "- 'Shampoo' → Groceries\n"
+        "- 'Big Mac' or 'Pizza' → Food & Dining\n"
+        "- 'Paracetamol' → Health & Pharmacy\n"
+        "- 'USB Cable' → Electronics & Tech\n"
+        "- 'Movie Ticket' → Entertainment\n"
+        "Be precise: use the exact category name from the schema."
+    )
+    if target_currency:
+        prompt_text += f"\n\nIMPORTANT: The user has specified that the currency is '{target_currency}'. Please parse all monetary values in this currency and return '{target_currency}' as the currency in the output."
+
     # Construct the multimodal message
     message = HumanMessage(
         content=[
             {
                 "type": "text",
-                "text": (
-                    "You are an expert receipt parser. Extract ALL details from this receipt image accurately.\n\n"
-                    "For EVERY line item, you must also assign a spending category from the fixed list in the schema.\n"
-                    "Examples:\n"
-                    "- 'Shampoo' → Groceries\n"
-                    "- 'Big Mac' or 'Pizza' → Food & Dining\n"
-                    "- 'Paracetamol' → Health & Pharmacy\n"
-                    "- 'USB Cable' → Electronics & Tech\n"
-                    "- 'Movie Ticket' → Entertainment\n"
-                    "Be precise: use the exact category name from the schema."
-                )
+                "text": prompt_text
             },
             {"type": "image_url", "image_url": {"url": image_url}},
         ]

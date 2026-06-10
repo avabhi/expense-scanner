@@ -6,3 +6,4 @@ class AgentState(TypedDict):
     raw_extraction: Optional[dict]
     validated_receipt: Optional[ReceiptSchema]
     errors: list[str]
+    target_currency: Optional[str]

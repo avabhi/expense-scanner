@@ -58,7 +58,8 @@ def process_receipt(self, object_key: str):
             "image_url": download_url,
             "raw_extraction": None,
             "validated_receipt": None,
-            "errors": []
+            "errors": [],
+            "target_currency": receipt.currency
         }
         
         # Run graph
@@ -91,8 +92,9 @@ def process_receipt(self, object_key: str):
             receipt.date = None  # Fallback if AI returned invalid date format
             
         receipt.total_amount = validated.total_amount
-        receipt.currency = validated.currency
+        receipt.currency = receipt.currency or validated.currency
         receipt.status = "completed"
+        receipt.confirmed = False
         
         # Clear existing line items if any (should be none since status was pending)
         receipt.line_items.clear()

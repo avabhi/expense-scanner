@@ -1,6 +1,7 @@
 import uuid
 import json
 import asyncio
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -25,6 +26,7 @@ class UploadUrlResponse(BaseModel):
 class ReceiptIngestRequest(BaseModel):
     object_key: str
     file_hash: str  # For idempotency
+    currency: Optional[str] = None
 
 @router.get("/upload-url", response_model=UploadUrlResponse)
 def get_upload_url(filename: str, current_user: User = Depends(get_current_user)):
@@ -107,6 +109,7 @@ def ingest_receipt(
         elif existing_receipt.status == "failed":
             existing_receipt.status = "pending"
             existing_receipt.s3_object_key = request.object_key
+            existing_receipt.currency = request.currency
             db.commit()
             
             task = celery_app.send_task("app.worker.tasks.process_receipt", args=[request.object_key])
@@ -124,7 +127,8 @@ def ingest_receipt(
         s3_object_key=request.object_key,
         file_hash=request.file_hash,
         status="pending",
-        user_id=current_user.id
+        user_id=current_user.id,
+        currency=request.currency
     )
     db.add(new_receipt)
     db.commit()
@@ -197,6 +201,9 @@ def get_receipt(
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found")
         
+    line_items_sum = sum(item.price for item in receipt.line_items)
+    total_matches = abs(line_items_sum - receipt.total_amount) < 0.01 if receipt.total_amount is not None else False
+
     return {
         "id": str(receipt.id),
         "merchant_name": receipt.merchant_name,
@@ -204,6 +211,9 @@ def get_receipt(
         "total_amount": receipt.total_amount,
         "currency": receipt.currency,
         "status": receipt.status,
+        "confirmed": receipt.confirmed,
+        "total_matches": total_matches,
+        "line_items_sum": round(line_items_sum, 2),
         "line_items": [
             {
                 "id": item.id,
@@ -214,4 +224,65 @@ def get_receipt(
             for item in receipt.line_items
         ]
     }
+
+class ReceiptConfirmRequest(BaseModel):
+    confirmed: bool
+    corrected_total: Optional[float] = None
+
+@router.post("/{receipt_id}/confirm")
+def confirm_receipt(
+    receipt_id: str,
+    request: ReceiptConfirmRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Confirm or reject a receipt after processing.
+    """
+    try:
+        receipt_uuid = uuid.UUID(receipt_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid receipt ID format")
+
+    receipt = db.query(Receipt).filter(
+        Receipt.id == receipt_uuid,
+        Receipt.user_id == current_user.id
+    ).first()
+    
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+        
+    if receipt.status != "completed":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Receipt is in state '{receipt.status}', not 'completed'"
+        )
+        
+    if receipt.confirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="Receipt is already confirmed"
+        )
+
+    if request.confirmed:
+        if request.corrected_total is not None:
+            receipt.total_amount = request.corrected_total
+        receipt.confirmed = True
+        db.commit()
+        return {
+            "message": "Receipt confirmed successfully.",
+            "status": "completed",
+            "confirmed": True,
+            "receipt_id": str(receipt.id),
+            "total_amount": receipt.total_amount
+        }
+    else:
+        receipt.status = "failed"
+        db.commit()
+        return {
+            "message": "Receipt rejected.",
+            "status": "failed",
+            "confirmed": False,
+            "receipt_id": str(receipt.id)
+        }
 

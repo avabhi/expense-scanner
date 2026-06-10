@@ -20,11 +20,15 @@ def get_category_summary(
     Each category includes the total amount spent, item count, and the list of
     receipts that contain items in that category (for user verification).
     """
-    # Query all line items from completed receipts belonging to the user
+    # Query all line items from completed and confirmed receipts belonging to the user
     rows = (
         db.query(LineItem, Receipt)
         .join(Receipt, LineItem.receipt_id == Receipt.id)
-        .filter(Receipt.status == "completed", Receipt.user_id == current_user.id)
+        .filter(
+            Receipt.status == "completed",
+            Receipt.confirmed == True,
+            Receipt.user_id == current_user.id
+        )
         .all()
     )
 
@@ -78,6 +82,7 @@ def get_all_categories(
         .join(Receipt, LineItem.receipt_id == Receipt.id)
         .filter(
             Receipt.status == "completed",
+            Receipt.confirmed == True,
             Receipt.user_id == current_user.id,
             LineItem.category.isnot(None)
         )

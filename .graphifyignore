@@ -7,8 +7,8 @@
     # Ignore everything at the root level
     /*
 
-    # But do not ignore the src directory (re-includes it for traversal)
-    !/src/
+    # But do not ignore the app directory (re-includes it for traversal)
+    !/app/
 
     # Ignore local graphify outputs
     graphify-out/manifest.json
