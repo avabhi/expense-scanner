@@ -267,6 +267,19 @@ def confirm_receipt(
     if request.confirmed:
         if request.corrected_total is not None:
             receipt.total_amount = request.corrected_total
+            
+        if receipt.total_amount is not None:
+            line_items_sum = sum(item.price for item in receipt.line_items)
+            difference = receipt.total_amount - line_items_sum
+            if abs(difference) >= 0.01:
+                from app.models.receipt import LineItem
+                adjustment_item = LineItem(
+                    description="Adjustment (Tax/Discount/Rounding)",
+                    price=round(difference, 2),
+                    category="Other"
+                )
+                receipt.line_items.append(adjustment_item)
+                
         receipt.confirmed = True
         db.commit()
         return {
